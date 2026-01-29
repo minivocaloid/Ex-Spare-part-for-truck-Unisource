@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truck Spare Part Store Management Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Chart Container Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Workflow Connector Lines */
+        .connector {
+            position: absolute;
+            background-color: #cbd5e1;
+            z-index: 0;
+        }
+        .flow-step {
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .flow-step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .active-step {
+            border-color: #f97316; /* Orange-500 */
+            background-color: #fff7ed; /* Orange-50 */
+        }
+        
+        body {
+            font-family: 'Sarabun', sans-serif; /* Fallback to sans-serif if not available */
+            background-color: #f8fafc; /* Slate-50 */
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Chosen Palette: Industrial Clean (Slate/Zinc bases with Safety Orange accents for the Trucking/Maintenance theme) -->
+    <!-- Application Structure Plan: 
+         1. Header: Quick context and title.
+         2. Navigation: Functional tabs (Overview, Workflow, KPIs, Calculator, Network).
+         3. Dynamic Content Area:
+            - Overview: Cards for Roles & Responsibilities.
+            - Network: Visual representation of inter-departmental coordination.
+            - Workflow: Interactive process map. Clicking steps reveals SOP details (Input/Process/Output).
+            - KPIs: Chart.js visualizations of standard metrics with definitions.
+            - Resource Calculator: Interactive tool to estimate manpower based on fleet size/workload.
+         4. Footer: Summary.
+         Rationale: This structure breaks down the complex "Chief Spare Part" request into logical, task-oriented modules suitable for building WIs and SOPs.
+    -->
+
+    <!-- Main App Container -->
+    <div id="app" class="min-h-screen flex flex-col max-w-7xl mx-auto bg-white shadow-xl my-4 rounded-xl overflow-hidden border border-slate-200">
+        
+        <!-- Header -->
+        <header class="bg-slate-900 text-white p-6 shadow-md">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                        <span class="text-orange-500 text-4xl">&#9881;</span> 
+                        Truck Maintenance Spare Part Management
+                    </h1>
+                    <p class="text-slate-400 mt-2 text-sm md:text-base">คู่มือการบริหารจัดการคลังอะไหล่รถบรรทุก: หน้าที่, กระบวนการ, และตัวชี้วัด</p>
+                </div>
+                <div class="mt-4 md:mt-0 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider block">Role Focus</span>
+                    <span class="font-semibold text-orange-400">Chief Spare Part / Store Manager</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-slate-100 border-b border-slate-200 px-4 overflow-x-auto">
+            <div class="flex space-x-1 min-w-max">
+                <button onclick="switchTab('overview')" id="tab-overview" class="nav-btn px-6 py-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:text-orange-600 hover:border-orange-300 transition-colors active-tab">ภาพรวม & หน้าที่รับผิดชอบ</button>
+                <button onclick="switchTab('network')" id="tab-network" class="nav-btn px-6 py-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:text-orange-600 hover:border-orange-300 transition-colors">การประสานงาน</button>
+                <button onclick="switchTab('workflow')" id="tab-workflow" class="nav-btn px-6 py-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:text-orange-600 hover:border-orange-300 transition-colors">Workflow & SOP</button>
+                <button onclick="switchTab('kpi')" id="tab-kpi" class="nav-btn px-6 py-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:text-orange-600 hover:border-orange-300 transition-colors">KPIs & เป้าหมาย</button>
+                <button onclick="switchTab('manpower')" id="tab-manpower" class="nav-btn px-6 py-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:text-orange-600 hover:border-orange-300 transition-colors">คำนวณอัตรากำลังคน</button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-grow p-6 bg-slate-50 relative">
+
+            <!-- TAB: OVERVIEW -->
+            <section id="view-overview" class="space-y-6 animate-fade-in">
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r">
+                    <p class="text-blue-800 text-sm">
+                        <strong>บทนำ:</strong> ส่วนงานสโตร์อะไหล่ (Spare Part Store) คือหัวใจสำคัญของการซ่อมบำรุงรถบรรทุก ไม่ใช่เพียงแค่ "ที่เก็บของ" แต่คือศูนย์กลางการบริหารต้นทุนและความพร้อมใช้ของรถ (Fleet Availability) หน้าที่หลักคือการส่งมอบอะไหล่ที่ถูกต้อง ในเวลาที่ทันท่วงที และในต้นทุนที่เหมาะสม
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Card 1 -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 text-2xl mb-4">&#128230;</div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">Inventory Management</h3>
+                        <p class="text-sm text-slate-600 mb-4">บริหารจัดการสินค้าคงคลัง ควบคุม Min-Max Level, วิเคราะห์ ABC Analysis และจัดการ Dead Stock เพื่อลดต้นทุนจม</p>
+                        <ul class="text-xs text-slate-500 list-disc list-inside space-y-1">
+                            <li>ตรวจสอบยอดคงเหลือจริง (Cycle Count)</li>
+                            <li>ควบคุมสภาพการจัดเก็บ (Preservation)</li>
+                        </ul>
+                    </div>
+
+                    <!-- Card 2 -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl mb-4">&#128736;</div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">Service & Issuing</h3>
+                        <p class="text-sm text-slate-600 mb-4">การเบิก-จ่ายอะไหล่ให้ทีมช่างซ่อมบำรุง ความถูกต้องและความรวดเร็วเป็นสิ่งสำคัญที่สุดเพื่อลด Downtime ของรถ</p>
+                        <ul class="text-xs text-slate-500 list-disc list-inside space-y-1">
+                            <li>ตรวจสอบ Part Number ให้ตรงรุ่นรถ</li>
+                            <li>บันทึกตัดสต็อกแบบ Real-time</li>
+                        </ul>
+                    </div>
+
+                    <!-- Card 3 -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl mb-4">&#128202;</div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">Planning & Procurement</h3>
+                        <p class="text-sm text-slate-600 mb-4">วางแผนการสั่งซื้อล่วงหน้า (Replenishment) ประสานงานจัดซื้อเพื่อให้มีอะไหล่ทันรอบ PM (Preventive Maintenance)</p>
+                        <ul class="text-xs text-slate-500 list-disc list-inside space-y-1">
+                            <li>ออกใบขอซื้อ (PR)</li>
+                            <li>ติดตามสถานะอะไหล่ Backorder</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">ขอบเขตความรับผิดชอบ (Key Responsibilities)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <strong class="text-slate-700 block mb-1">1. การรับเข้า (Inbound):</strong> ตรวจรับอะไหล่จาก Supplier, ตรวจสอบคุณภาพเบื้องต้น (QC), ติด Barcode/Tag, นำขึ้นชั้นวาง (Binning)
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <strong class="text-slate-700 block mb-1">2. การดูแลรักษา (Storage):</strong> จัดระเบียบ Location, ดูแลความสะอาด (5S), ป้องกันสนิม/ความชื้น, หมุนเวียนสินค้า (FIFO)
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <strong class="text-slate-700 block mb-1">3. การจ่ายออก (Outbound):</strong> รับใบเบิก (Work Order), จัดอะไหล่ (Picking), ส่งมอบและบันทึกตัดยอด
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <strong class="text-slate-700 block mb-1">4. ข้อมูลและระบบ (System):</strong> อัปเดตข้อมูลในระบบ ERP/WMS, วิเคราะห์การใช้งาน, รายงานยอดคงเหลือ
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: NETWORK -->
+            <section id="view-network" class="hidden space-y-6">
+                <div class="mb-4">
+                     <h3 class="text-xl font-bold text-slate-800">แผนผังการประสานงาน (Stakeholders)</h3>
+                     <p class="text-sm text-slate-500">คลิกที่หน่วยงานเพื่อดูรายละเอียดการประสานงาน</p>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center justify-items-center h-full min-h-[400px]">
+                    
+                    <!-- Purchasing -->
+                    <div onclick="showCoordDetail('purchasing')" class="cursor-pointer group relative w-full max-w-xs bg-white border-l-4 border-green-500 p-4 shadow hover:shadow-lg transition-all transform hover:-translate-y-1">
+                        <h4 class="font-bold text-slate-700">ฝ่ายจัดซื้อ (Purchasing)</h4>
+                        <p class="text-xs text-slate-500 mt-1">Sourcing & Ordering</p>
+                        <div class="hidden lg:block absolute -right-8 top-1/2 w-8 h-0.5 bg-slate-300"></div>
+                    </div>
+
+                    <!-- Center: STORE -->
+                    <div class="relative w-full max-w-xs bg-slate-800 text-white p-6 rounded-xl shadow-xl text-center z-10 border-4 border-orange-400">
+                        <div class="text-4xl mb-2">&#127981;</div>
+                        <h3 class="text-xl font-bold">Spare Part Store</h3>
+                        <p class="text-xs text-slate-300 mt-2">ศูนย์กลางข้อมูลและทรัพยากร</p>
+                        
+                        <!-- Connecting Lines for Mobile (Hidden on LG) -->
+                        <div class="lg:hidden h-8 w-0.5 bg-slate-300 mx-auto my-2"></div>
+                    </div>
+
+                    <!-- Maintenance -->
+                    <div onclick="showCoordDetail('maintenance')" class="cursor-pointer group relative w-full max-w-xs bg-white border-l-4 border-blue-500 p-4 shadow hover:shadow-lg transition-all transform hover:-translate-y-1">
+                        <div class="hidden lg:block absolute -left-8 top-1/2 w-8 h-0.5 bg-slate-300"></div>
+                        <h4 class="font-bold text-slate-700">ฝ่ายซ่อมบำรุง (Maintenance)</h4>
+                        <p class="text-xs text-slate-500 mt-1">User & Consumer</p>
+                    </div>
+
+                    <!-- Finance -->
+                    <div onclick="showCoordDetail('finance')" class="cursor-pointer group relative w-full max-w-xs bg-white border-l-4 border-yellow-500 p-4 shadow hover:shadow-lg transition-all transform hover:-translate-y-1 col-span-1 lg:col-start-2">
+                        <div class="hidden lg:block absolute left-1/2 -top-8 w-0.5 h-8 bg-slate-300"></div>
+                        <h4 class="font-bold text-slate-700">บัญชี/การเงิน (Finance)</h4>
+                        <p class="text-xs text-slate-500 mt-1">Audit & Payment</p>
+                    </div>
+
+                </div>
+
+                <!-- Dynamic Detail Box -->
+                <div id="coord-detail-box" class="bg-slate-100 p-6 rounded-lg border border-slate-200 mt-6 hidden transition-all">
+                    <h4 id="coord-title" class="font-bold text-lg text-slate-800 mb-2"></h4>
+                    <ul id="coord-list" class="list-disc list-inside text-sm text-slate-700 space-y-2"></ul>
+                </div>
+            </section>
+
+            <!-- TAB: WORKFLOW -->
+            <section id="view-workflow" class="hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-slate-800">กระบวนการทำงานหลัก (Core Workflows)</h3>
+                    <select id="workflow-selector" onchange="updateWorkflow()" class="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2.5">
+                        <option value="inbound">การรับอะไหล่ (Inbound)</option>
+                        <option value="outbound">การจ่ายอะไหล่ (Outbound)</option>
+                        <option value="inventory">การบริหารคลัง (Inventory Control)</option>
+                    </select>
+                </div>
+
+                <!-- Interactive Diagram Area -->
+                <div class="bg-white p-6 rounded-lg shadow-inner min-h-[400px] relative overflow-hidden">
+                    <div id="workflow-canvas" class="flex flex-col md:flex-row justify-center items-center gap-4 h-full pt-10">
+                        <!-- Workflow Steps Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Step Detail Panel -->
+                <div id="workflow-detail" class="bg-orange-50 border border-orange-200 p-6 rounded-lg hidden">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 text-orange-500 mt-1 mr-4">
+                            <span class="text-2xl">&#8505;</span>
+                        </div>
+                        <div>
+                            <h4 id="wf-step-title" class="text-lg font-bold text-orange-800 mb-2">Step Detail</h4>
+                            <p id="wf-step-desc" class="text-sm text-slate-700 mb-3"></p>
+                            <div class="bg-white bg-opacity-60 p-3 rounded text-sm text-slate-600">
+                                <strong>Documents/Tools:</strong> <span id="wf-step-docs"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: KPI -->
+            <section id="view-kpi" class="hidden space-y-6">
+                <div class="mb-4">
+                    <h3 class="text-xl font-bold text-slate-800">ตัวชี้วัดประสิทธิภาพ (KPIs)</h3>
+                    <p class="text-sm text-slate-500">กราฟแสดงค่าเป้าหมายมาตรฐานเทียบกับค่าสมมติ เพื่อการวิเคราะห์</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- KPI 1: Inventory Accuracy -->
+                    <div class="bg-white p-4 rounded-lg shadow border border-slate-100">
+                        <h4 class="font-bold text-slate-700 mb-2 flex justify-between">
+                            ความแม่นยำของสต็อก (Inventory Accuracy)
+                            <span class="text-xs font-normal bg-green-100 text-green-800 px-2 py-1 rounded">Target: >98%</span>
+                        </h4>
+                        <div class="chart-container">
+                            <canvas id="chartAccuracy"></canvas>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2 text-center">วัดจากการนับ Cycle Count เทียบกับยอดในระบบ</p>
+                    </div>
+
+                    <!-- KPI 2: Stockout Rate -->
+                    <div class="bg-white p-4 rounded-lg shadow border border-slate-100">
+                        <h4 class="font-bold text-slate-700 mb-2 flex justify-between">
+                            อัตราของขาด (Stockout Rate)
+                            <span class="text-xs font-normal bg-red-100 text-red-800 px-2 py-1 rounded">Target: <2%</span>
+                        </h4>
+                        <div class="chart-container">
+                            <canvas id="chartStockout"></canvas>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2 text-center">จำนวนครั้งที่ไม่มีของจ่ายเมื่อมีการขอเบิก</p>
+                    </div>
+
+                    <!-- KPI Table -->
+                    <div class="col-span-1 lg:col-span-2 bg-white p-6 rounded-lg shadow border border-slate-100">
+                        <h4 class="font-bold text-slate-700 mb-4">KPI Dictionary & Definitions</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left text-slate-500">
+                                <thead class="text-xs text-slate-700 uppercase bg-slate-50">
+                                    <tr>
+                                        <th class="px-6 py-3">KPI Name</th>
+                                        <th class="px-6 py-3">Definition / Formula</th>
+                                        <th class="px-6 py-3">Why it matters</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr>
+                                        <td class="px-6 py-4 font-medium text-slate-900">Inventory Turnover</td>
+                                        <td class="px-6 py-4">ต้นทุนขาย / มูลค่าสต็อกเฉลี่ย</td>
+                                        <td class="px-6 py-4">วัดว่าสต็อกหมุนเวียนเร็วแค่ไหน สต็อกจมนานหรือไม่</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 font-medium text-slate-900">Dead Stock %</td>
+                                        <td class="px-6 py-4">(มูลค่าสินค้าไม่เคลื่อนไหว > 1 ปี / มูลค่ารวม) x 100</td>
+                                        <td class="px-6 py-4">บ่งบอกประสิทธิภาพการสั่งซื้อและการเคลียร์พื้นที่</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 font-medium text-slate-900">Order Fulfillment Time</td>
+                                        <td class="px-6 py-4">เวลาเฉลี่ยตั้งแต่รับใบเบิกจนถึงส่งของ</td>
+                                        <td class="px-6 py-4">ความรวดเร็วในการบริการทีมช่าง</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: MANPOWER -->
+            <section id="view-manpower" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="text-xl font-bold text-slate-800 mb-4">โปรแกรมคำนวณอัตรากำลังคน (Manpower Calculator)</h3>
+                    <p class="text-sm text-slate-600 mb-6">
+                        การคำนวณนี้เป็นการประเมินเบื้องต้นโดยอิงจากปริมาณธุรกรรม (Transaction Based) ซึ่งเหมาะสมกับงานสโตร์มากกว่าการอิงตามจำนวนรถเพียงอย่างเดียว
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Inputs -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block mb-2 text-sm font-medium text-slate-900">จำนวนใบเบิกต่อวัน (Avg Issues/Day)</label>
+                                <input type="range" id="input-issues" min="0" max="200" value="50" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                                <span id="val-issues" class="text-orange-600 font-bold">50</span> ใบ
+                            </div>
+                            
+                            <div>
+                                <label class="block mb-2 text-sm font-medium text-slate-900">จำนวนรายการรับเข้าต่อวัน (Avg Receiving Lines/Day)</label>
+                                <input type="range" id="input-receive" min="0" max="100" value="20" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                                <span id="val-receive" class="text-orange-600 font-bold">20</span> รายการ
+                            </div>
+
+                            <div>
+                                <label class="block mb-2 text-sm font-medium text-slate-900">เวลาเฉลี่ยต่อรายการ (Average Time per Transaction)</label>
+                                <select id="input-time" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block w-full p-2.5">
+                                    <option value="10">10 นาที (ระบบบาร์โค้ดเต็มรูปแบบ)</option>
+                                    <option value="15" selected>15 นาที (มาตรฐาน)</option>
+                                    <option value="25">25 นาที (ระบบเอกสาร/Manual)</option>
+                                </select>
+                            </div>
+
+                            <div class="p-4 bg-yellow-50 rounded text-xs text-yellow-800 border border-yellow-200">
+                                <strong>Note:</strong> เวลาทำงานที่มีประสิทธิภาพ (Productive Time) คิดที่ 6.5 ชม./วัน/คน (หักเวลาพัก, ประชุม, งานเอกสารอื่นๆ)
+                            </div>
+                        </div>
+
+                        <!-- Result -->
+                        <div class="flex flex-col justify-center items-center bg-slate-900 text-white rounded-xl p-6 shadow-lg">
+                            <div class="text-sm uppercase tracking-widest text-slate-400 mb-2">แนะนำจำนวนพนักงาน</div>
+                            <div id="result-staff" class="text-6xl font-bold text-orange-500">2.7</div>
+                            <div class="text-xl mt-1 text-slate-300">คน</div>
+                            <div id="result-comment" class="text-center text-xs mt-4 text-slate-400 px-4">
+                                ควรมี Storekeeper 2 คน และ Sup/Lead 1 คน
+                            </div>
+                            <button onclick="calculateManpower()" class="mt-6 px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded text-sm font-medium transition-colors">คำนวณใหม่</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reference Table -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mt-6">
+                    <h4 class="font-bold text-slate-700 mb-2">เกณฑ์อ้างอิงทั่วไป (Rule of Thumb)</h4>
+                    <ul class="list-disc list-inside text-sm text-slate-600 space-y-2">
+                        <li><strong>Small Fleet (< 50 คัน):</strong> 1-2 คน (มักทำหน้าที่ Admin หรือ จัดซื้อควบ)</li>
+                        <li><strong>Medium Fleet (50-150 คัน):</strong> 2-3 คน (Storekeeper + Supervisor)</li>
+                        <li><strong>Large Fleet (> 150 คัน):</strong> 4+ คน (แยกแผนกรับ, จ่าย, และ Inventory Audit ชัดเจน)</li>
+                    </ul>
+                </div>
+            </section>
+
+        </main>
+        
+        <footer class="bg-slate-100 p-4 border-t border-slate-200 text-center text-xs text-slate-500">
+            &copy; 2023 Truck Maintenance Management System. Generated for informational purposes.
+        </footer>
+    </div>
+
+    <!-- Logic & Data -->
+    <script>
+        // --- State Management ---
+        const state = {
+            activeTab: 'overview',
+            workflowData: {
+                inbound: [
+                    { id: 1, title: 'PR/PO', desc: 'ฝ่ายจัดซื้อออกใบสั่งซื้อ (PO) และส่งสำเนาให้สโตร์', docs: 'Purchase Order' },
+                    { id: 2, title: 'Receiving', desc: 'รถส่งของมาถึง ตรวจสอบสภาพกล่องเบื้องต้น', docs: 'Delivery Note' },
+                    { id: 3, title: 'Inspection (QC)', desc: 'เปิดตรวจนับจำนวน ตรวจสภาพอะไหล่ เทียบ Part No. กับ PO', docs: 'Goods Receipt Note' },
+                    { id: 4, title: 'System Entry', desc: 'คีย์รับเข้าในระบบ (ERP) สร้าง Barcode/Tag', docs: 'Stock Card / System Log' },
+                    { id: 5, title: 'Binning', desc: 'นำสินค้าไปวางบนชั้น (Put-away) ตาม Location ที่ระบุ', docs: 'Bin Tag' }
+                ],
+                outbound: [
+                    { id: 1, title: 'Request', desc: 'ช่างแจ้งเบิกอะไหล่ผ่านใบ Job หรือระบบ', docs: 'Work Order / Material Request' },
+                    { id: 2, title: 'Verify', desc: 'สโตร์เช็คสต็อกและ Part Number ให้ตรงรุ่นรถ', docs: 'Inventory System' },
+                    { id: 3, title: 'Picking', desc: 'ไปหยิบอะไหล่ตาม Location (First-In-First-Out)', docs: 'Picking List' },
+                    { id: 4, title: 'Issuing', desc: 'ส่งมอบอะไหล่ให้ช่าง + เซ็นรับของ', docs: 'Issue Slip' },
+                    { id: 5, title: 'System Cut', desc: 'ตัดยอดในระบบทันที และเช็คจุด Re-order Point', docs: 'System Update' }
+                ],
+                inventory: [
+                    { id: 1, title: 'Cycle Count', desc: 'สุ่มนับสินค้าหมุนเวียนสูง (A-Item) ทุกสัปดาห์', docs: 'Count Sheet' },
+                    { id: 2, title: 'Discrepancy', desc: 'หากยอดไม่ตรง ให้หาสาเหตุ (หาย/คีย์ผิด/วางผิดที่)', docs: 'Adjustment Report' },
+                    { id: 3, title: 'Preservation', desc: 'ตรวจสอบสนิม ฝุ่น และวันหมดอายุ (เคมีภัณฑ์)', docs: 'Audit Checklist' },
+                    { id: 4, title: 'Dead Stock', desc: 'คัดแยกของที่ไม่เคลื่อนไหวเกิน 1 ปี ทำเรื่องขายซากหรือคืน', docs: 'Dead Stock Report' }
+                ]
+            },
+            coordData: {
+                purchasing: {
+                    title: "การประสานงานกับ ฝ่ายจัดซื้อ (Purchasing)",
+                    items: [
+                        "แจ้งเตือนเมื่อสินค้าถึงจุดสั่งซื้อ (Re-order Point)",
+                        "ให้ข้อมูลทางเทคนิคของอะไหล่เพื่อสั่งให้ถูกรุ่น",
+                        "ติดตามสถานะของที่ยังมาไม่ถึง (Backorder Tracking)",
+                        "แจ้งเคลมสินค้าเมื่อพบของเสียจากการรับเข้า"
+                    ]
+                },
+                maintenance: {
+                    title: "การประสานงานกับ ฝ่ายซ่อมบำรุง (Maintenance)",
+                    items: [
+                        "รับแผน PM ล่วงหน้าเพื่อเตรียมอะไหล่ (Parts Planning)",
+                        "ให้คำปรึกษาเรื่องอะไหล่ทดแทน (Substitutions)",
+                        "ควบคุมการเบิกอะไหล่สิ้นเปลือง (Consumables Control)",
+                        "รับคืนอะไหล่เก่า (Core Return) สำหรับอะไหล่หมุนเวียน"
+                    ]
+                },
+                finance: {
+                    title: "การประสานงานกับ บัญชี/การเงิน (Finance)",
+                    items: [
+                        "ส่งเอกสารการรับของ (GR) เพื่อตั้งเจ้าหนี้",
+                        "ร่วมตรวจนับสต็อกประจำปี (Yearly Count)",
+                        "ชี้แจงยอดสินค้าคงเหลือและยอดปรับปรุง (Adjustment)",
+                        "รายงานมูลค่า Dead Stock เพื่อตั้งสำรอง"
+                    ]
+                }
+            }
+        };
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateWorkflow(); // Load default workflow
+            initCharts();
+            calculateManpower(); // Initial calc
+            
+            // Add listeners for range inputs
+            document.getElementById('input-issues').addEventListener('input', (e) => {
+                document.getElementById('val-issues').innerText = e.target.value;
+                calculateManpower();
+            });
+            document.getElementById('input-receive').addEventListener('input', (e) => {
+                document.getElementById('val-receive').innerText = e.target.value;
+                calculateManpower();
+            });
+            document.getElementById('input-time').addEventListener('change', calculateManpower);
+        });
+
+        // --- Tab Navigation ---
+        function switchTab(tabId) {
+            // Update UI State
+            state.activeTab = tabId;
+            
+            // Hide all sections
+            ['overview', 'network', 'workflow', 'kpi', 'manpower'].forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                document.getElementById(`tab-${id}`).classList.remove('text-orange-600', 'border-orange-300', 'active-tab');
+                document.getElementById(`tab-${id}`).classList.add('border-transparent');
+            });
+
+            // Show active section
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.add('text-orange-600', 'border-orange-300', 'active-tab');
+            activeBtn.classList.remove('border-transparent');
+        }
+
+        // --- Workflow Logic ---
+        function updateWorkflow() {
+            const type = document.getElementById('workflow-selector').value;
+            const data = state.workflowData[type];
+            const canvas = document.getElementById('workflow-canvas');
+            
+            canvas.innerHTML = ''; // Clear existing
+
+            data.forEach((step, index) => {
+                // Create Step Element
+                const stepEl = document.createElement('div');
+                stepEl.className = `flow-step relative bg-white border-2 border-slate-300 w-32 md:w-40 p-3 rounded-lg text-center cursor-pointer hover:border-orange-400 z-10`;
+                stepEl.innerHTML = `
+                    <div class="text-xs text-slate-400 mb-1">Step ${index + 1}</div>
+                    <div class="font-bold text-slate-700 text-sm">${step.title}</div>
+                `;
+                stepEl.onclick = () => showStepDetail(step, stepEl);
+                
+                canvas.appendChild(stepEl);
+
+                // Add Connector Arrow (except for last item)
+                if (index < data.length - 1) {
+                    const arrow = document.createElement('div');
+                    // Vertical for mobile, Horizontal for desktop logic managed by Flex gap, strictly visual here
+                    arrow.className = "hidden md:block text-slate-300 text-xl font-bold";
+                    arrow.innerHTML = "&rarr;";
+                    canvas.appendChild(arrow);
+                    
+                    const arrowDown = document.createElement('div');
+                    arrowDown.className = "block md:hidden text-slate-300 text-xl font-bold";
+                    arrowDown.innerHTML = "&darr;";
+                    canvas.appendChild(arrowDown);
+                }
+            });
+
+            // Hide detail initially
+            document.getElementById('workflow-detail').classList.add('hidden');
+        }
+
+        function showStepDetail(step, element) {
+            // Highlight
+            document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('active-step'));
+            element.classList.add('active-step');
+
+            // Populate Info
+            const detailPanel = document.getElementById('workflow-detail');
+            detailPanel.classList.remove('hidden');
+            detailPanel.classList.add('animate-fade-in');
+            
+            document.getElementById('wf-step-title').innerText = `${step.id}. ${step.title}`;
+            document.getElementById('wf-step-desc').innerText = step.desc;
+            document.getElementById('wf-step-docs').innerText = step.docs;
+        }
+
+        // --- Network Logic ---
+        function showCoordDetail(dept) {
+            const data = state.coordData[dept];
+            const box = document.getElementById('coord-detail-box');
+            
+            document.getElementById('coord-title').innerText = data.title;
+            const list = document.getElementById('coord-list');
+            list.innerHTML = '';
+            data.items.forEach(item => {
+                const li = document.createElement('li');
+                li.innerText = item;
+                list.appendChild(li);
+            });
+
+            box.classList.remove('hidden');
+        }
+
+        // --- Manpower Logic ---
+        function calculateManpower() {
+            const issues = parseInt(document.getElementById('input-issues').value) || 0;
+            const receive = parseInt(document.getElementById('input-receive').value) || 0;
+            const timePerTrans = parseInt(document.getElementById('input-time').value) || 15;
+            
+            const totalTrans = issues + receive;
+            const totalMinutes = totalTrans * timePerTrans;
+            const productiveMinutesPerPerson = 6.5 * 60; // 390 mins
+
+            const staffNeeded = totalMinutes / productiveMinutesPerPerson;
+            const formattedStaff = staffNeeded.toFixed(1);
+
+            document.getElementById('result-staff').innerText = formattedStaff;
+            
+            let comment = "";
+            if (staffNeeded < 1.5) comment = "สามารถใช้พนักงาน 1-2 คน (อาจทำหน้าที่ Admin ควบ)";
+            else if (staffNeeded < 3.5) comment = "ควรมี Storekeeper 2-3 คน และแยกผู้ดูแลสต็อก 1 คน";
+            else comment = "งานปริมาณมาก ควรมี Supervisor 1 คน, รับของ 2 คน, จ่ายของ 2+ คน";
+            
+            document.getElementById('result-comment').innerText = comment;
+        }
+
+        // --- Chart.js Logic ---
+        function initCharts() {
+            // Inventory Accuracy Chart
+            const ctxAcc = document.getElementById('chartAccuracy').getContext('2d');
+            new Chart(ctxAcc, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Accuracy %',
+                        data: [95, 96, 94, 98, 99, 98.5],
+                        backgroundColor: '#f97316', // Orange 500
+                        borderRadius: 4
+                    }, {
+                        label: 'Target',
+                        data: [98, 98, 98, 98, 98, 98],
+                        type: 'line',
+                        borderColor: '#1e293b', // Slate 800
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { min: 80, max: 100 }
+                    }
+                }
+            });
+
+            // Stockout Rate Chart
+            const ctxStock = document.getElementById('chartStockout').getContext('2d');
+            new Chart(ctxStock, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Stockout Rate %',
+                        data: [5, 4.2, 3.5, 2.0, 1.8, 1.5],
+                        borderColor: '#ef4444', // Red 500
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Target Limit',
+                        data: [2, 2, 2, 2, 2, 2],
+                        borderColor: '#22c55e', // Green 500
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+    </script>
+    
+    <!-- Visualization & Content Choices:
+         1. Overview: Card Layout. Goal: Quick absorption of scope.
+         2. Network: Interactive CSS Grid. Goal: Show relationships. Interaction: Click for details (avoiding complex SVG).
+         3. Workflow: Dynamic Step Process. Goal: Instructional. Interaction: Tab to switch flows, click step for SOP details.
+         4. KPIs: Chart.js Bar/Line. Goal: Analytical. Interaction: None required beyond tooltips.
+         5. Manpower: Interactive Calculator. Goal: Planning/Utility. Interaction: Range sliders update result in real-time.
+         
+         CONFIRMATION: NO SVG graphics used (using Unicode/CSS shapes). NO Mermaid JS used.
+    -->
+</body>
+</html>
